@@ -1,0 +1,13 @@
+---
+processes:
+- name: kafka
+  executable: /var/vcap/jobs/kafka/bin/ctl
+  args: [start]
+  ephemeral_disk: true
+  persistent_disk: true
+  env: {}
+  limits:
+    open_files: 131072
+  hooks:
+    pre_start: /var/vcap/jobs/kafka/bin/bpm-pre-start
+# example at https://github.com/cloudfoundry-incubator/bpm-release/blob/master/jobs/bpm-test-agent/templates/bpm.yml.erb

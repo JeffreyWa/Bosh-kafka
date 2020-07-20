@@ -1,0 +1,46 @@
+#!/bin/bash
+
+export JAVA_HOME=/var/vcap/packages/openjdk
+export PATH=$JAVA_HOME/bin:/var/vcap/packages/kafka/bin:$PATH
+
+export CLASSPATH=${CLASSPATH:-''}
+for jar_dir in $(ls -d /var/vcap/packages/**/*.jar); do
+  export CLASSPATH=${jar_dir}:$CLASSPATH
+done
+
+export KAFKA_LOG4J_OPTS="-Dlog4j.configuration=file:/var/vcap/jobs/kafka/config/log4j.properties"
+export LOG_DIR=/var/vcap/sys/log/kafka
+
+function log {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S.%3N')] kafka-post-start - $1"
+}
+
+log "Starting"
+
+<% zks = link('zookeeper') %>
+<% zk_port = zks.p('client_port') %>
+<% list =  zks.instances.map { |instance| "#{instance.address}:#{zk_port}" }.join(",") %>
+LOOP_TIME=0
+CONDITION=60
+while [ $LOOP_TIME -lt $CONDITION ]; do 
+    result=$`/var/vcap/packages/kafka/bin/kafka-topics.sh \
+        --describe \
+        --zookeeper <%= list %> \
+        --under-replicated-partitions`
+
+    ret=$?
+    if [ "$ret" -eq "0" ]
+    then
+        echo $result | grep -e "topic" >/dev/null 2>&1
+        check=$?
+        if [ "$check" -ne "0" ]
+        then
+            log "broker replica caught up with the leader"
+            exit 0
+        fi  
+    fi
+    log "Broker still is catching up with the leader"
+    let LOOP_TIME++
+    sleep 10
+done
+exit 1
